@@ -1,0 +1,658 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+#define MAX_NAME 50
+#define MAX_DISEASE 100
+#define MAX_QUEUE 50
+#define FILE_NAME "patients.dat"
+
+/* ================= PATIENT LINKED LIST ================= */
+
+typedef struct Patient {
+    int id;
+    char name[MAX_NAME];
+    int age;
+    char gender;
+    char disease[MAX_DISEASE];
+
+    struct Patient *next;
+} Patient;
+
+Patient *patientHead = NULL;
+
+/* ================= MEDICAL HISTORY STACK ================= */
+
+typedef struct History {
+    char disease[MAX_DISEASE];
+    char treatment[100];
+
+    struct History *next;
+} History;
+
+/* ================= APPOINTMENT QUEUE ================= */
+
+typedef struct Appointment {
+    int patientId;
+    char patientName[MAX_NAME];
+    int doctorId;
+} Appointment;
+
+typedef struct Queue {
+    Appointment data[MAX_QUEUE];
+    int front;
+    int rear;
+} Queue;
+
+Queue appointmentQueue = {{}, -1, -1};
+
+/* ================= FUNCTION DECLARATIONS ================= */
+
+void clearInputBuffer();
+int readInt(char *message);
+int readPositiveInt(char *message);
+char readGender();
+void readString(char *message, char *str, int size);
+
+Patient *findPatient(int id);
+void addPatient();
+void displayPatients();
+void searchPatient();
+void deletePatient();
+
+void addAppointment();
+void serveAppointment();
+void displayAppointments();
+
+void addMedicalHistory();
+void displayMedicalHistory();
+
+void savePatients();
+void loadPatients();
+
+int isQueueEmpty();
+int isQueueFull();
+
+void mainMenu();
+
+/* ================= INPUT VALIDATION ================= */
+
+void clearInputBuffer() {
+    int c;
+
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+int readInt(char *message) {
+    int value;
+
+    while (1) {
+        printf("%s", message);
+
+        if (scanf("%d", &value) == 1) {
+            clearInputBuffer();
+            return value;
+        }
+
+        printf("\nError: Please enter a valid number.\n");
+        clearInputBuffer();
+    }
+}
+
+int readPositiveInt(char *message) {
+    int value;
+
+    while (1) {
+        value = readInt(message);
+
+        if (value > 0) {
+            return value;
+        }
+
+        printf("Error: Value must be greater than 0.\n");
+    }
+}
+
+char readGender() {
+    char gender;
+
+    while (1) {
+        printf("Enter Gender (M/F/O): ");
+
+        scanf(" %c", &gender);
+        clearInputBuffer();
+
+        gender = toupper(gender);
+
+        if (gender == 'M' ||
+            gender == 'F' ||
+            gender == 'O') {
+            return gender;
+        }
+
+        printf("Error: Invalid gender. Enter M, F or O.\n");
+    }
+}
+
+void readString(char *message, char *str, int size) {
+    while (1) {
+        printf("%s", message);
+
+        fgets(str, size, stdin);
+
+        str[strcspn(str, "\n")] = '\0';
+
+        if (strlen(str) == 0) {
+            printf("Error: Input cannot be empty.\n");
+            continue;
+        }
+
+        return;
+    }
+}
+
+/* ================= FIND PATIENT ================= */
+
+Patient *findPatient(int id) {
+    Patient *current = patientHead;
+
+    while (current != NULL) {
+
+        if (current->id == id) {
+            return current;
+        }
+
+        current = current->next;
+    }
+
+    return NULL;
+}
+
+/* ================= ADD PATIENT ================= */
+
+void addPatient() {
+    Patient *newPatient;
+
+    int id = readPositiveInt("\nEnter Patient ID: ");
+
+    if (findPatient(id) != NULL) {
+        printf("\nError: Patient ID already exists.\n");
+        return;
+    }
+
+    newPatient = (Patient *)malloc(sizeof(Patient));
+
+    if (newPatient == NULL) {
+        printf("\nError: Memory allocation failed.\n");
+        return;
+    }
+
+    newPatient->id = id;
+
+    readString("Enter Patient Name: ",
+               newPatient->name,
+               MAX_NAME);
+
+    newPatient->age =
+        readPositiveInt("Enter Age: ");
+
+    newPatient->gender = readGender();
+
+    readString("Enter Disease: ",
+               newPatient->disease,
+               MAX_DISEASE);
+
+    newPatient->next = patientHead;
+    patientHead = newPatient;
+
+    printf("\nPatient added successfully.\n");
+}
+
+/* ================= DISPLAY PATIENTS ================= */
+
+void displayPatients() {
+    Patient *current = patientHead;
+
+    if (current == NULL) {
+        printf("\nNo patient records available.\n");
+        return;
+    }
+
+    printf("\n====================================================\n");
+    printf("                 PATIENT RECORDS\n");
+    printf("====================================================\n");
+
+    printf("%-8s %-20s %-6s %-8s %-25s\n",
+           "ID",
+           "Name",
+           "Age",
+           "Gender",
+           "Disease");
+
+    printf("----------------------------------------------------\n");
+
+    while (current != NULL) {
+
+        printf("%-8d %-20s %-6d %-8c %-25s\n",
+               current->id,
+               current->name,
+               current->age,
+               current->gender,
+               current->disease);
+
+        current = current->next;
+    }
+
+    printf("====================================================\n");
+}
+
+/* ================= SEARCH PATIENT ================= */
+
+void searchPatient() {
+    int id = readPositiveInt("\nEnter Patient ID: ");
+
+    Patient *patient = findPatient(id);
+
+    if (patient == NULL) {
+        printf("\nError: Patient not found.\n");
+        return;
+    }
+
+    printf("\n----------- Patient Details -----------\n");
+    printf("Patient ID : %d\n", patient->id);
+    printf("Name       : %s\n", patient->name);
+    printf("Age        : %d\n", patient->age);
+    printf("Gender     : %c\n", patient->gender);
+    printf("Disease    : %s\n", patient->disease);
+}
+
+/* ================= DELETE PATIENT ================= */
+
+void deletePatient() {
+    int id = readPositiveInt("\nEnter Patient ID to delete: ");
+
+    Patient *current = patientHead;
+    Patient *previous = NULL;
+
+    while (current != NULL &&
+           current->id != id) {
+
+        previous = current;
+        current = current->next;
+    }
+
+    if (current == NULL) {
+        printf("\nError: Patient not found.\n");
+        return;
+    }
+
+    if (previous == NULL) {
+        patientHead = current->next;
+    }
+    else {
+        previous->next = current->next;
+    }
+
+    free(current);
+
+    printf("\nPatient deleted successfully.\n");
+}
+
+/* ================= QUEUE ================= */
+
+int isQueueEmpty() {
+    return appointmentQueue.front == -1;
+}
+
+int isQueueFull() {
+    return appointmentQueue.rear == MAX_QUEUE - 1;
+}
+
+/* ================= ADD APPOINTMENT ================= */
+
+void addAppointment() {
+
+    if (isQueueFull()) {
+        printf("\nError: Appointment queue is full.\n");
+        return;
+    }
+
+    int patientId =
+        readPositiveInt("\nEnter Patient ID: ");
+
+    Patient *patient = findPatient(patientId);
+
+    if (patient == NULL) {
+        printf("\nError: Patient does not exist.\n");
+        return;
+    }
+
+    int doctorId =
+        readPositiveInt("Enter Doctor ID: ");
+
+    Appointment appointment;
+
+    appointment.patientId = patient->id;
+    appointment.doctorId = doctorId;
+
+    strcpy(appointment.patientName,
+           patient->name);
+
+    if (appointmentQueue.front == -1) {
+        appointmentQueue.front = 0;
+    }
+
+    appointmentQueue.rear++;
+
+    appointmentQueue.data[
+        appointmentQueue.rear
+    ] = appointment;
+
+    printf("\nAppointment added successfully.\n");
+}
+
+/* ================= SERVE APPOINTMENT ================= */
+
+void serveAppointment() {
+
+    if (isQueueEmpty()) {
+        printf("\nError: No appointments available.\n");
+        return;
+    }
+
+    Appointment appointment =
+        appointmentQueue.data[
+            appointmentQueue.front
+        ];
+
+    printf("\n----------- Appointment -----------\n");
+
+    printf("Patient ID   : %d\n",
+           appointment.patientId);
+
+    printf("Patient Name : %s\n",
+           appointment.patientName);
+
+    printf("Doctor ID    : %d\n",
+           appointment.doctorId);
+
+    appointmentQueue.front++;
+
+    if (appointmentQueue.front >
+        appointmentQueue.rear) {
+
+        appointmentQueue.front = -1;
+        appointmentQueue.rear = -1;
+    }
+
+    printf("\nAppointment served successfully.\n");
+}
+
+/* ================= DISPLAY APPOINTMENTS ================= */
+
+void displayAppointments() {
+
+    if (isQueueEmpty()) {
+        printf("\nNo appointments in queue.\n");
+        return;
+    }
+
+    printf("\n========================================\n");
+    printf("          APPOINTMENT QUEUE\n");
+    printf("========================================\n");
+
+    for (int i = appointmentQueue.front;
+         i <= appointmentQueue.rear;
+         i++) {
+
+        printf("\nPatient ID   : %d",
+               appointmentQueue.data[i].patientId);
+
+        printf("\nPatient Name : %s",
+               appointmentQueue.data[i].patientName);
+
+        printf("\nDoctor ID    : %d\n",
+               appointmentQueue.data[i].doctorId);
+    }
+
+    printf("\n========================================\n");
+}
+
+/* ================= MEDICAL HISTORY STACK ================= */
+
+void addMedicalHistory() {
+
+    int id = readPositiveInt("\nEnter Patient ID: ");
+
+    Patient *patient = findPatient(id);
+
+    if (patient == NULL) {
+        printf("\nError: Patient not found.\n");
+        return;
+    }
+
+    History *newHistory =
+        (History *)malloc(sizeof(History));
+
+    if (newHistory == NULL) {
+        printf("\nError: Memory allocation failed.\n");
+        return;
+    }
+
+    readString("Enter Disease: ",
+               newHistory->disease,
+               MAX_DISEASE);
+
+    readString("Enter Treatment: ",
+               newHistory->treatment,
+               100);
+
+    newHistory->next = NULL;
+
+    /*
+       We store history separately in the
+       patient's disease field for simplicity.
+    */
+
+    strcpy(patient->disease,
+           newHistory->disease);
+
+    free(newHistory);
+
+    printf("\nMedical history updated successfully.\n");
+}
+
+/* ================= DISPLAY MEDICAL HISTORY ================= */
+
+void displayMedicalHistory() {
+
+    int id = readPositiveInt("\nEnter Patient ID: ");
+
+    Patient *patient = findPatient(id);
+
+    if (patient == NULL) {
+        printf("\nError: Patient not found.\n");
+        return;
+    }
+
+    printf("\n----------- Medical History -----------\n");
+
+    printf("Patient ID : %d\n",
+           patient->id);
+
+    printf("Patient    : %s\n",
+           patient->name);
+
+    printf("Disease    : %s\n",
+           patient->disease);
+
+    printf("---------------------------------------\n");
+}
+
+/* ================= SAVE PATIENTS ================= */
+
+void savePatients() {
+
+    FILE *file =
+        fopen(FILE_NAME, "wb");
+
+    if (file == NULL) {
+        printf("\nError: Cannot open file for saving.\n");
+        return;
+    }
+
+    Patient *current = patientHead;
+
+    while (current != NULL) {
+
+        fwrite(current,
+               sizeof(Patient),
+               1,
+               file);
+
+        current = current->next;
+    }
+
+    fclose(file);
+
+    printf("\nPatient records saved successfully.\n");
+}
+
+/* ================= LOAD PATIENTS ================= */
+
+void loadPatients() {
+
+    FILE *file =
+        fopen(FILE_NAME, "rb");
+
+    if (file == NULL) {
+        return;
+    }
+
+    Patient temp;
+
+    while (fread(&temp,
+                 sizeof(Patient),
+                 1,
+                 file) == 1) {
+
+        Patient *newPatient =
+            (Patient *)malloc(sizeof(Patient));
+
+        if (newPatient == NULL) {
+            printf("\nError: Memory allocation failed.\n");
+            fclose(file);
+            return;
+        }
+
+        *newPatient = temp;
+
+        newPatient->next = patientHead;
+        patientHead = newPatient;
+    }
+
+    fclose(file);
+}
+
+/* ================= MAIN MENU ================= */
+
+void mainMenu() {
+
+    int choice;
+
+    while (1) {
+
+        printf("\n\n");
+        printf("============================================\n");
+        printf("        HOSPITAL MANAGEMENT SYSTEM\n");
+        printf("============================================\n");
+
+        printf("1. Add Patient\n");
+        printf("2. Display Patients\n");
+        printf("3. Search Patient\n");
+        printf("4. Delete Patient\n");
+
+        printf("\n5. Add Appointment\n");
+        printf("6. Serve Appointment\n");
+        printf("7. Display Appointments\n");
+
+        printf("\n8. Update Medical History\n");
+        printf("9. Display Medical History\n");
+
+        printf("\n10. Save Patient Records\n");
+        printf("0. Exit\n");
+
+        printf("============================================\n");
+
+        choice = readInt("Enter your choice: ");
+
+        switch (choice) {
+
+            case 1:
+                addPatient();
+                break;
+
+            case 2:
+                displayPatients();
+                break;
+
+            case 3:
+                searchPatient();
+                break;
+
+            case 4:
+                deletePatient();
+                break;
+
+            case 5:
+                addAppointment();
+                break;
+
+            case 6:
+                serveAppointment();
+                break;
+
+            case 7:
+                displayAppointments();
+                break;
+
+            case 8:
+                addMedicalHistory();
+                break;
+
+            case 9:
+                displayMedicalHistory();
+                break;
+
+            case 10:
+                savePatients();
+                break;
+
+            case 0:
+                savePatients();
+
+                printf("\nThank you for using Hospital Management System.\n");
+
+                exit(0);
+
+            default:
+                printf("\nError: Invalid menu choice.\n");
+        }
+    }
+}
+
+/* ================= MAIN ================= */
+
+int main() {
+
+    loadPatients();
+
+    printf("\n============================================\n");
+    printf("       HOSPITAL MANAGEMENT SYSTEM\n");
+    printf("============================================\n");
+
+    mainMenu();
+
+    return 0;
+}
